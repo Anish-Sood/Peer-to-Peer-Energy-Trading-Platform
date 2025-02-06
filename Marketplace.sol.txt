@@ -1,0 +1,106 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import "./RewardToken.sol"; // Import the RewardToken contract
+
+contract Marketplace {
+    struct Item {
+        address payable seller;
+        string name;
+        string description;
+        uint256 price; // Price in RewardTokens
+        string imageURL; // IPFS or URL to image
+        bool sold;
+    }
+
+    mapping(uint256 => Item) public items;
+    uint256 public itemCount;
+    RewardToken public rewardToken; // RewardToken contract instance
+    uint256 public feePercentage = 2; // Fee charged by marketplace (2%)
+    address public admin;
+
+    event ItemListed(uint256 itemId, address seller, string name, uint256 price, string imageURL);
+    event ItemSold(uint256 itemId, address buyer, uint256 price);
+
+    // Constructor to set the RewardToken contract address and admin
+    constructor(address _rewardToken) {
+        rewardToken = RewardToken(_rewardToken);
+        admin = msg.sender; // Set the deployer as admin
+        
+    }
+
+    // Function for users to list items for sale
+    function listItem(
+        string memory _name,
+        string memory _description,
+        uint256 _price,
+        string memory _imageURL
+    ) public {
+        require(_price > 0, "Price must be greater than zero");
+
+        itemCount++;
+        uint256 itemId = itemCount;
+
+        items[itemId] = Item({
+            seller: payable(msg.sender),
+            name: _name,
+            description: _description,
+            price: _price,
+            imageURL: _imageURL,
+            sold: false
+        });
+
+        emit ItemListed(itemId, msg.sender, _name, _price, _imageURL);
+    }
+
+    // Function for users to purchase items from the marketplace
+   // Function for users to purchase items from the marketplace
+function buyItem(uint256 _itemId) public {
+    Item storage item = items[_itemId];
+    require(!item.sold, "Item already sold");
+    require(item.price > 0, "Item price must be greater than zero");
+
+    uint256 fee = (item.price * feePercentage) / 100; // Calculate marketplace fee
+    uint256 netPrice = item.price - fee;
+
+    uint256 buyerBalance = rewardToken.balanceOf(msg.sender);
+    uint256 requiredAmount = item.price + fee; // Total amount including fee
+
+    require(buyerBalance >= requiredAmount, "Not enough balance to buy item");
+    
+    // Check if the buyer has approved enough tokens
+    uint256 allowance = rewardToken.allowance(msg.sender, address(this));
+    require(allowance >= requiredAmount, "Allowance is not sufficient");
+
+    // Transfer reward tokens from the buyer to the seller, minus fee
+    require(rewardToken.transferFrom(msg.sender, item.seller, netPrice), "Payment to seller failed");
+
+    // Transfer fee to the admin
+    require(rewardToken.transferFrom(msg.sender, admin, fee), "Fee payment failed");
+
+    
+
+    item.sold = true; // Mark item as sold
+
+    emit ItemSold(_itemId, msg.sender, item.price);
+}
+
+    // Admin function to change the fee percentage (only admin can do this)
+    function setFeePercentage(uint256 _newFeePercentage) public {
+        require(msg.sender == admin, "Only admin can change the fee");
+        feePercentage = _newFeePercentage;
+    }
+
+    // Function to get item details by item ID
+    function getItem(uint256 _itemId) public view returns (
+        address seller,
+        string memory name,
+        string memory description,
+        uint256 price,
+        string memory imageURL,
+        bool sold
+    ) {
+        Item storage item = items[_itemId];
+        return (item.seller, item.name, item.description, item.price, item.imageURL, item.sold);
+    }
+}

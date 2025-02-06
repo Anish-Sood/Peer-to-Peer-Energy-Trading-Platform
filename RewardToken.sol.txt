@@ -1,0 +1,38 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+
+contract RewardToken is ERC20 {
+    address public admin;
+    mapping(address => bool) public minters; // Allow specific addresses to mint
+
+    // The constructor to initialize the token with its name and symbol
+    constructor() ERC20("RewardToken", "RTK") {
+        admin = msg.sender; // The deployer of the contract will be the admin
+        minters[admin] = true; // Give the admin the permission to mint
+    }
+
+    // Function for admin to mint new tokens
+    function mint(address to, uint256 amount) external {
+        require(minters[msg.sender] == true, "Only authorized minters can mint");
+        _mint(to, amount); // Mint tokens to a specified address
+    }
+
+    // Function for admin to authorize other addresses (e.g., auction contract) to mint
+    function authorizeMinter(address minter) external {
+        require(msg.sender == admin, "Only admin can authorize minters");
+        minters[minter] = true;
+    }
+
+    // Function for admin to revoke minting permission from an address
+    function revokeMinter(address minter) external {
+        require(msg.sender == admin, "Only admin can revoke minters");
+        minters[minter] = false;
+    }
+
+    function authorizeEnergyTrading(address energyTradingContract) external {
+        require(msg.sender == admin, "Only admin can authorize EnergyTrading");
+        minters[energyTradingContract] = true;  // Allow EnergyTrading to mint
+    }
+}
